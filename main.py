@@ -7,12 +7,14 @@ from bs4 import BeautifulSoup
 
 
 class Parser:
-    TIME_OUT = 2
+    TIME_OUT = 60
     TARGET_LINK = "https://www.bileter.ru/afisha/building/teatr_dojdey.html"
     ENABLED = True
     PROCESS = None
 
     def __init__(self):
+        self.new_thread = None
+        self.timeout = self.TIME_OUT
         self.window = tk.Tk()
 
         self.main_button = tk.Button(
@@ -48,7 +50,7 @@ class Parser:
 
         self.results_label = tk.Label(text="Результат")
         self.results_label.pack()
-        self.results_label_list_box = tk.Listbox()
+        self.results_label_list_box = tk.Listbox(width=200)
         self.results_label_list_box.pack()
 
         self.window.mainloop()
@@ -56,6 +58,8 @@ class Parser:
     def exit_program(
         self,
     ):
+        if self.new_thread:
+            self.new_thread.join(timeout=0.01)
         exit(1)
 
     def _resetbutton(self):
@@ -63,20 +67,39 @@ class Parser:
         self.main_button.config(text="Старт", command=self.start_thread)
 
     def start_thread(self):
-        self.running = True
-        newthread = threading.Thread(target=self.loop_parse)
-        newthread.start()
+        try:
+            try:
+                self.time_out = max(int(self.time_out_entry.get()), self.TIME_OUT)
+            except ValueError:
+                self.time_out_entry.delete(0, len(self.time_out_entry.get()))
+                self.time_out_entry.insert(0, "неверный формат числа")
+                raise
+            self.running = True
+            self.new_thread = threading.Thread(target=self.loop_parse, daemon=True)
+            self.new_thread.start()
+        except Exception:
+            return
         self.main_button.config(text="Стоп", command=self._resetbutton)
 
     def loop_parse(self):
-        time_out = max(int(self.time_out_entry.get()), self.TIME_OUT)
-        while self.running:
-            self.parse()
-            time.sleep(time_out)
+        try:
+            while self.running:
+                self.parse()
+                time.sleep(self.time_out)
+        except RuntimeError:
+            pass
+        except Exception:
+            self.results_label_list_box.insert(
+                self.results_label_list_box.size(),
+                "Что-то пошло не так",
+            )
+            self._resetbutton()
 
     def parse(self):
+        self.results_label_list_box.delete(0, self.results_label_list_box.size())
         target_link_str = self.target_link.get() or self.TARGET_LINK
         response = requests.get(target_link_str)
+        response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
         performance_divs = soup.find_all(
             name="div", attrs={"class": "building-schedule-item hasTickets"}
@@ -113,7 +136,7 @@ class Parser:
             is_has_ticket_divs = performance.find_all(
                 name="div", attrs={"class": "building-schedule-item-ticket-col"}
             )
-            for i, div in enumerate(is_has_ticket_divs, start=1):
+            for i, div in enumerate(is_has_ticket_divs):
                 is_has_ticket = div.find(name="a", attrs={"class": "item"})
                 if is_has_ticket:
                     price = div.find(name="div", attrs={"class": "price"}).text.strip()
@@ -125,14 +148,11 @@ class Parser:
                     ticket_count_text = f"В наличии {ticket_count} билетов"
                     link = is_has_ticket.get("href")
                     link_text = f"https://www.bileter.ru{link}"
-                    print(date_string, date_time, name)
-                    print(price, ticket_count_text, link_text)
 
                     self.results_label_list_box.insert(
                         i,
-                        f"{date_string} {date_time} {name} {price} {ticket_count_text} {link_text}",
+                        f"{date_string:^50} {date_time:^10} | {name:^50} | {price:^50} | {ticket_count_text:^50} | {link_text:^60}",
                     )
-                    print(self.results_label_list_box.get(1))
 
 
 Parser()
