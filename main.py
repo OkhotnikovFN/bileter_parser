@@ -1,6 +1,7 @@
 import threading
 import time
 import tkinter as tk
+from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
@@ -52,6 +53,12 @@ class Parser:
         self.results_label.pack()
         self.results_label_list_box = tk.Listbox(width=200)
         self.results_label_list_box.pack()
+        self.results_time_update_label = tk.Label(text="Время обновления")
+        self.results_time_update_label.pack()
+        self.results_time_update = tk.Entry(
+            fg="black", bg="white", width=50, state=tk.DISABLED
+        )
+        self.results_time_update.pack()
 
         self.window.mainloop()
 
@@ -71,9 +78,9 @@ class Parser:
             try:
                 self.time_out = max(int(self.time_out_entry.get()), self.TIME_OUT)
             except ValueError:
-                self.time_out_entry.delete(0, len(self.time_out_entry.get()))
-                self.time_out_entry.insert(0, "неверный формат числа")
+                self.time_out_entry.config(bg="red")
                 raise
+            self.time_out_entry.config(bg="white")
             self.running = True
             self.new_thread = threading.Thread(target=self.loop_parse, daemon=True)
             self.new_thread.start()
@@ -153,6 +160,10 @@ class Parser:
                         i,
                         f"{date_string:^50} {date_time:^10} | {name:^50} | {price:^50} | {ticket_count_text:^50} | {link_text:^60}",
                     )
+        self.results_time_update.config(state=tk.NORMAL)
+        self.results_time_update.delete(0, len(self.results_time_update.get()))
+        self.results_time_update.insert(0, datetime.now().isoformat())
+        self.results_time_update.config(state=tk.DISABLED)
 
 
 Parser()
