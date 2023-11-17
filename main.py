@@ -43,7 +43,9 @@ class Parser:
         self.target_link.insert(0, self.TARGET_LINK)
         self.target_link.pack()
 
-        self.time_out_label = tk.Label(text="Частота парсинга (не чаще 1 раз в минуту)")
+        self.time_out_label = tk.Label(
+            text="Частота парсинга, c (не чаще 1 раз в минуту)"
+        )
         self.time_out_label.pack()
         self.time_out_entry = tk.Entry(fg="black", bg="white", width=50)
         self.time_out_entry.insert(0, str(self.TIME_OUT))
@@ -51,14 +53,14 @@ class Parser:
 
         self.results_label = tk.Label(text="Результат")
         self.results_label.pack()
-        self.results_label_list_box = tk.Listbox(width=200)
-        self.results_label_list_box.pack()
         self.results_time_update_label = tk.Label(text="Время обновления")
         self.results_time_update_label.pack()
         self.results_time_update = tk.Entry(
             fg="black", bg="white", width=50, state=tk.DISABLED
         )
         self.results_time_update.pack()
+
+        self.result_columns = []
 
         self.window.mainloop()
 
@@ -84,7 +86,7 @@ class Parser:
             self.running = True
             self.new_thread = threading.Thread(target=self.loop_parse, daemon=True)
             self.new_thread.start()
-        except Exception:
+        except Exception as e:
             return
         self.main_button.config(text="Стоп", command=self._resetbutton)
 
@@ -96,14 +98,15 @@ class Parser:
         except RuntimeError:
             pass
         except Exception:
-            self.results_label_list_box.insert(
-                self.results_label_list_box.size(),
+            self.results_time_update.config(state=tk.NORMAL)
+            self.results_time_update.delete(0, len(self.results_time_update.get()))
+            self.results_time_update.insert(
+                0,
                 "Что-то пошло не так",
             )
             self._resetbutton()
 
     def parse(self):
-        self.results_label_list_box.delete(0, self.results_label_list_box.size())
         target_link_str = self.target_link.get() or self.TARGET_LINK
         response = requests.get(target_link_str)
         response.raise_for_status()
@@ -119,6 +122,12 @@ class Parser:
                 },
             )
         )
+
+        for column in self.result_columns:
+            for entry in column:
+                entry.destroy()
+        self.result_columns = []
+
         for performance in performance_divs:
             date_div = performance.find(
                 name="div", attrs={"class": "building-schedule-item-date-col"}
@@ -143,6 +152,7 @@ class Parser:
             is_has_ticket_divs = performance.find_all(
                 name="div", attrs={"class": "building-schedule-item-ticket-col"}
             )
+
             for i, div in enumerate(is_has_ticket_divs):
                 is_has_ticket = div.find(name="a", attrs={"class": "item"})
                 if is_has_ticket:
@@ -156,10 +166,36 @@ class Parser:
                     link = is_has_ticket.get("href")
                     link_text = f"https://www.bileter.ru{link}"
 
-                    self.results_label_list_box.insert(
-                        i,
-                        f"{date_string:^50} {date_time:^10} | {name:^50} | {price:^50} | {ticket_count_text:^50} | {link_text:^60}",
+                    frame = tk.Frame()
+                    date_entry = tk.Entry(frame, fg="black", bg="white", width=30)
+                    date_entry.insert(0, date_string)
+                    date_time_entry = tk.Entry(frame, fg="black", bg="white", width=10)
+                    date_time_entry.insert(0, date_time)
+                    name_entry = tk.Entry(frame, fg="black", bg="white", width=30)
+                    name_entry.insert(0, name)
+                    price_entry = tk.Entry(frame, fg="black", bg="white", width=30)
+                    price_entry.insert(0, price)
+                    ticket_count_text_entry = tk.Entry(
+                        frame, fg="black", bg="white", width=30
                     )
+                    ticket_count_text_entry.insert(0, ticket_count_text)
+                    link_text_entry = tk.Entry(frame, fg="black", bg="white", width=50)
+                    link_text_entry.insert(0, link_text)
+                    self.result_columns.append(
+                        [
+                            frame,
+                            date_entry,
+                            date_time_entry,
+                            name_entry,
+                            price_entry,
+                            ticket_count_text_entry,
+                            link_text_entry,
+                        ]
+                    )
+        for column in self.result_columns:
+            for i, entry in enumerate(column):
+                side = "top" if i == 0 else "left"
+                entry.pack(side=side)
         self.results_time_update.config(state=tk.NORMAL)
         self.results_time_update.delete(0, len(self.results_time_update.get()))
         self.results_time_update.insert(0, datetime.now().isoformat())
